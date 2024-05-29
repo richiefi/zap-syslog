@@ -452,6 +452,7 @@ func TestSyslogEncoderStructuredData(t *testing.T) {
 	msg := buf.String()
 	msgPrefix := "<135>1 2017-01-02T03:04:05.123456Z localhost encoder_test 9876 - [encoder_test@112 a-str=\"pebcak\" i64=\"42\" u32=\"314\" f64=\"3.14\" b=\"true\"] \xef\xbb\xbf"
 	if !strings.HasPrefix(msg, msgPrefix) {
+		t.Errorf("Wrong syslog output for structured data")
 		t.Log(msg)
 		t.Log(msgPrefix)
 		return

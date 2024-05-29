@@ -310,7 +310,7 @@ func (enc *syslogEncoder) encodeStructuredData(ent zapcore.Entry, fields []zapco
 	}
 
 	var buf buffer.Buffer
-	buf.AppendString("[" + enc.App + "@" + strconv.Itoa(enc.EnterpriseID))
+	buf.AppendString("[" + enc.App + "@" + strconv.Itoa(enc.EnterpriseID) + " ")
 	for i, f := range fields {
 		if i > 0 {
 			buf.AppendByte(' ')
