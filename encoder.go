@@ -21,8 +21,10 @@
 package zapsyslog
 
 import (
+	"math"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -68,11 +70,12 @@ type jsonEncoder interface {
 type SyslogEncoderConfig struct {
 	zapcore.EncoderConfig
 
-	Framing  Framing         `json:"framing" yaml:"framing"`
-	Facility syslog.Priority `json:"facility" yaml:"facility"`
-	Hostname string          `json:"hostname" yaml:"hostname"`
-	PID      int             `json:"pid" yaml:"pid"`
-	App      string          `json:"app" yaml:"app"`
+	Framing      Framing         `json:"framing" yaml:"framing"`
+	Facility     syslog.Priority `json:"facility" yaml:"facility"`
+	Hostname     string          `json:"hostname" yaml:"hostname"`
+	PID          int             `json:"pid" yaml:"pid"`
+	App          string          `json:"app" yaml:"app"`
+	EnterpriseID int             `json:"enterprise_id" yaml:"enterprise_id"`
 }
 
 type syslogEncoder struct {
@@ -262,8 +265,19 @@ func (enc *syslogEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field)
 	msg.AppendByte(' ')
 	msg.AppendInt(int64(enc.PID))
 
-	// SP MSGID SP STRUCTURED-DATA (just ignore)
-	msg.AppendString(" - -")
+	// SP MSGID
+	msg.AppendByte(' ')
+	if ent.Caller.Defined {
+		msg.AppendString(ent.Caller.FullPath())
+	} else {
+		msg.AppendString(nilValue)
+	}
+
+	// SP STRUCTURED-DATA
+	msg.AppendByte(' ')
+	msg.AppendString(enc.encodeStructuredData(ent, fields))
+	// Scrap fields that are already encoded in structured data
+	//fields = []zapcore.Field{}
 
 	// SP UTF8 MSG
 	json, err := enc.je.EncodeEntry(ent, fields)
@@ -288,4 +302,45 @@ func (enc *syslogEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field)
 	out.AppendString(internal.BytesToString(msg.Bytes()))
 	msg.Free()
 	return out, err
+}
+
+func (enc *syslogEncoder) encodeStructuredData(ent zapcore.Entry, fields []zapcore.Field) string {
+	if len(fields) == 0 {
+		return nilValue
+	}
+
+	var buf buffer.Buffer
+	buf.AppendString("[" + enc.App + "@" + strconv.Itoa(enc.EnterpriseID))
+	for i, f := range fields {
+		if i > 0 {
+			buf.AppendByte(' ')
+		}
+		buf.AppendString(f.Key)
+		buf.AppendByte('=')
+		var v string
+		switch f.Type {
+		case zapcore.StringType:
+			v = f.String
+			v = strings.Replace(v, "'", `\'`, -1)
+			v = strings.Replace(v, `"`, `\"`, -1)
+			v = strings.Replace(v, "]", `\]`, -1)
+		case zapcore.Int32Type, zapcore.Int64Type, zapcore.Int16Type, zapcore.Int8Type:
+			v = strconv.FormatInt(f.Integer, 10)
+		case zapcore.Uint32Type, zapcore.Uint64Type, zapcore.Uint16Type, zapcore.Uint8Type:
+			v = strconv.FormatUint(uint64(f.Integer), 10)
+		case zapcore.Float64Type:
+			v = strconv.FormatFloat(math.Float64frombits(uint64(f.Integer)), 'f', -1, 64)
+		case zapcore.Float32Type:
+			v = strconv.FormatFloat(float64(math.Float32frombits(uint32(f.Integer))), 'f', -1, 32)
+		case zapcore.BoolType:
+			if f.Integer == 1 {
+				v = "true"
+			} else {
+				v = "false"
+			}
+		}
+		buf.AppendString("\"" + v + "\"")
+	}
+	buf.AppendByte(']')
+	return buf.String()
 }

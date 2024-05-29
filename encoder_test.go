@@ -382,11 +382,12 @@ func testEncoderConfig(framing Framing) SyslogEncoderConfig {
 			EncodeCaller:   zapcore.ShortCallerEncoder,
 		},
 
-		Framing:  framing,
-		Hostname: "localhost",
-		App:      "encoder_test",
-		PID:      9876,
-		Facility: syslog.LOG_LOCAL0,
+		Framing:      framing,
+		Hostname:     "localhost",
+		App:          "encoder_test",
+		EnterpriseID: 112,
+		PID:          9876,
+		Facility:     syslog.LOG_LOCAL0,
 	}
 }
 
@@ -429,6 +430,30 @@ func testSyslogEncoderFraming(t *testing.T, framing Framing) {
 	if err != nil {
 		t.Errorf("message part of syslog output is not a valid json string: %s", err)
 		t.Logf("actual got: %s", jsonString)
+		return
+	}
+}
+
+func TestSyslogEncoderStructuredData(t *testing.T) {
+	enc := NewSyslogEncoder(testEncoderConfig(NonTransparentFraming))
+	enc.AddString("str", "foo")
+	enc.AddInt64("int64-1", 1)
+	enc.AddInt64("int64-2", 2)
+	enc.AddFloat64("float64", 1.0)
+	enc.AddString("string1", "\n")
+	enc.AddString("string2", "💩")
+	enc.AddString("string3", "🤔")
+	enc.AddString("string4", "🙊")
+	enc.AddBool("bool", true)
+
+	// Add fields to encode into structured data
+	buf, _ := enc.EncodeEntry(testEntry, []zapcore.Field{zap.String("a-str", "pebcak"), zap.Int64("i64", 42), zap.Uint32("u32", 314), zap.Float64("f64", 3.14), zap.Bool("b", true)})
+	defer buf.Free()
+	msg := buf.String()
+	msgPrefix := "<135>1 2017-01-02T03:04:05.123456Z localhost encoder_test 9876 - [encoder_test@112 a-str=\"pebcak\" i64=\"42\" u32=\"314\" f64=\"3.14\" b=\"true\"] \xef\xbb\xbf"
+	if !strings.HasPrefix(msg, msgPrefix) {
+		t.Log(msg)
+		t.Log(msgPrefix)
 		return
 	}
 }
