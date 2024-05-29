@@ -30,7 +30,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/imperfectgo/zap-syslog/syslog"
+	"github.com/richiefi/zap-syslog/syslog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"

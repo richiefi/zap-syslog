@@ -5,8 +5,8 @@ import (
 	"encoding/hex"
 	"os"
 
-	"github.com/imperfectgo/zap-syslog"
-	"github.com/imperfectgo/zap-syslog/syslog"
+	"github.com/richiefi/zap-syslog"
+	"github.com/richiefi/zap-syslog/syslog"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
