@@ -21,19 +21,19 @@
 package zapsyslog
 
 import (
-	"math"
-	"os"
-	"path"
-	"strconv"
-	"strings"
-	"time"
+    "math"
+    "os"
+    "path"
+    "strconv"
+    "strings"
+    "time"
 
-	"github.com/richiefi/zap-syslog/internal"
-	"github.com/richiefi/zap-syslog/internal/bufferpool"
-	"github.com/richiefi/zap-syslog/syslog"
-	"go.uber.org/zap"
-	"go.uber.org/zap/buffer"
-	"go.uber.org/zap/zapcore"
+    "github.com/richiefi/zap-syslog/internal"
+    "github.com/richiefi/zap-syslog/internal/bufferpool"
+    "github.com/richiefi/zap-syslog/syslog"
+    "go.uber.org/zap"
+    "go.uber.org/zap/buffer"
+    "go.uber.org/zap/zapcore"
 )
 
 const (
@@ -275,12 +275,13 @@ func (enc *syslogEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field)
 
 	// SP STRUCTURED-DATA
 	msg.AppendByte(' ')
-	msg.AppendString(enc.encodeStructuredData(ent, fields))
-	// Scrap fields that are already encoded in structured data
-	//fields = []zapcore.Field{}
+	msg.AppendString(enc.encodeStructuredData(fields))
+	// Scrap fields that are already encoded in structured data. Only encode `msg`.
+	fields = []zapcore.Field{}
+	je2 := zapcore.NewJSONEncoder(enc.EncoderConfig).(jsonEncoder)
 
 	// SP UTF8 MSG
-	json, err := enc.je.EncodeEntry(ent, fields)
+	json, err := je2.EncodeEntry(ent, fields)
 	if json.Len() > 0 {
 		msg.AppendString(" \xef\xbb\xbf")
 		bs := json.Bytes()
@@ -304,7 +305,7 @@ func (enc *syslogEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field)
 	return out, err
 }
 
-func (enc *syslogEncoder) encodeStructuredData(ent zapcore.Entry, fields []zapcore.Field) string {
+func (enc *syslogEncoder) encodeStructuredData(fields []zapcore.Field) string {
 	if len(fields) == 0 {
 		return nilValue
 	}
