@@ -21,19 +21,19 @@
 package zapsyslog
 
 import (
-    "math"
-    "os"
-    "path"
-    "strconv"
-    "strings"
-    "time"
+	"math"
+	"os"
+	"path"
+	"strconv"
+	"strings"
+	"time"
 
-    "github.com/richiefi/zap-syslog/internal"
-    "github.com/richiefi/zap-syslog/internal/bufferpool"
-    "github.com/richiefi/zap-syslog/syslog"
-    "go.uber.org/zap"
-    "go.uber.org/zap/buffer"
-    "go.uber.org/zap/zapcore"
+	"github.com/richiefi/zap-syslog/internal"
+	"github.com/richiefi/zap-syslog/internal/bufferpool"
+	"github.com/richiefi/zap-syslog/syslog"
+	"go.uber.org/zap"
+	"go.uber.org/zap/buffer"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -278,6 +278,7 @@ func (enc *syslogEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field)
 	msg.AppendString(enc.encodeStructuredData(fields))
 	// Scrap fields that are already encoded in structured data. Only encode `msg`.
 	fields = []zapcore.Field{}
+	ent.Caller.Defined = false
 	je2 := zapcore.NewJSONEncoder(enc.EncoderConfig).(jsonEncoder)
 
 	// SP UTF8 MSG
