@@ -276,25 +276,15 @@ func (enc *syslogEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field)
 	// SP STRUCTURED-DATA
 	msg.AppendByte(' ')
 	msg.AppendString(enc.encodeStructuredData(fields))
-	// Scrap fields that are already encoded in structured data. Only encode `msg`.
-	fields = []zapcore.Field{}
-	ent.Caller.Defined = false
-	je2 := zapcore.NewJSONEncoder(enc.EncoderConfig).(jsonEncoder)
 
 	// SP UTF8 MSG
-	json, err := je2.EncodeEntry(ent, fields)
-	if json.Len() > 0 {
+	if len(ent.Message) > 0 {
 		msg.AppendString(" \xef\xbb\xbf")
-		bs := json.Bytes()
-		if enc.Framing == OctetCountingFraming {
-			// Strip trailing line feed
-			bs = bs[:len(bs)-1]
-		}
-		msg.AppendString(internal.BytesToString(bs))
+		msg.AppendString(ent.Message)
 	}
 
 	if enc.Framing != OctetCountingFraming {
-		return msg, err
+		return msg, nil
 	}
 
 	// SYSLOG-FRAME = MSG-LEN SP SYSLOG-MSG
@@ -303,7 +293,7 @@ func (enc *syslogEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field)
 	out.AppendByte(' ')
 	out.AppendString(internal.BytesToString(msg.Bytes()))
 	msg.Free()
-	return out, err
+	return out, nil
 }
 
 func (enc *syslogEncoder) encodeStructuredData(fields []zapcore.Field) string {
