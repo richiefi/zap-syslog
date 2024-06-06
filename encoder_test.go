@@ -187,10 +187,10 @@ func TestSyslogEncoderStructuredData(t *testing.T) {
 	enc.AddBool("bool", true)
 
 	// Add fields to encode into structured data
-	buf, _ := enc.EncodeEntry(testEntry, []zapcore.Field{zap.String("a-str", "pebcak"), zap.Int64("i64", 42), zap.Uint32("u32", 314), zap.Float64("f64", 3.14), zap.Bool("b", true)})
+	buf, _ := enc.EncodeEntry(testEntry, []zapcore.Field{zap.String("a-str", "pebcak"), zap.Int64("i64", 42), zap.Uint32("u32", 314), zap.Float64("f64", 3.14), zap.Bool("b", true), zap.Error(errors.New("boom"))})
 	defer buf.Free()
 	msg := buf.String()
-	msgPrefix := "<135>1 2017-01-02T03:04:05.123456Z localhost encoder_test 9876 - [encoder_test@112 a-str=\"pebcak\" i64=\"42\" u32=\"314\" f64=\"3.14\" b=\"true\"] \xef\xbb\xbf"
+	msgPrefix := "<135>1 2017-01-02T03:04:05.123456Z localhost encoder_test 9876 - [encoder_test@112 a-str=\"pebcak\" i64=\"42\" u32=\"314\" f64=\"3.14\" b=\"true\" error=\"boom\"] \xef\xbb\xbf"
 	if !strings.HasPrefix(msg, msgPrefix) {
 		t.Errorf("Wrong syslog output for structured data")
 		t.Log(msg)

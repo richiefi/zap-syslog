@@ -311,6 +311,8 @@ func (enc *syslogEncoder) encodeStructuredData(fields []zapcore.Field) string {
 		buf.AppendByte('=')
 		var v string
 		switch f.Type {
+		case zapcore.ErrorType:
+			v = f.Interface.(error).Error()
 		case zapcore.StringType:
 			v = f.String
 			v = strings.Replace(v, "'", `\'`, -1)
