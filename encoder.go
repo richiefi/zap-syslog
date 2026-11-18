@@ -21,17 +21,16 @@
 package zapsyslog
 
 import (
-	"math"
+	"fmt"
 	"os"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/richiefi/zap-syslog/internal"
 	"github.com/richiefi/zap-syslog/internal/bufferpool"
 	"github.com/richiefi/zap-syslog/syslog"
-	"go.uber.org/zap"
 	"go.uber.org/zap/buffer"
 	"go.uber.org/zap/zapcore"
 )
@@ -48,7 +47,6 @@ const (
 
 var (
 	_ zapcore.Encoder = &syslogEncoder{}
-	_                 = zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()).(jsonEncoder)
 )
 
 // Framing.
@@ -60,11 +58,6 @@ const (
 
 // Framing configures RFC6587 TCP transport framing.
 type Framing int
-
-type jsonEncoder interface {
-	zapcore.Encoder
-	zapcore.ArrayEncoder
-}
 
 // SyslogEncoderConfig allows users to configure the concrete encoders for zap syslog.
 type SyslogEncoderConfig struct {
@@ -78,9 +71,11 @@ type SyslogEncoderConfig struct {
 	EnterpriseID int             `json:"enterprise_id" yaml:"enterprise_id"`
 }
 
+// syslogEncoder keeps the fields of With in its MapObjectEncoder, and writes
+// them with each entry's own fields as its structured data.
 type syslogEncoder struct {
 	*SyslogEncoderConfig
-	je jsonEncoder
+	*zapcore.MapObjectEncoder
 }
 
 func rfc5424CompliantASCIIMapper(r rune) rune {
@@ -127,83 +122,11 @@ func NewSyslogEncoder(cfg SyslogEncoderConfig) zapcore.Encoder {
 		app = toRFC5424CompliantASCIIString(app)
 	}
 
-	cfg.EncoderConfig.LineEnding = "\n"
-	je := zapcore.NewJSONEncoder(cfg.EncoderConfig).(jsonEncoder)
 	return &syslogEncoder{
 		SyslogEncoderConfig: &cfg,
-		je:                  je,
+		MapObjectEncoder:    zapcore.NewMapObjectEncoder(),
 	}
 }
-
-func (enc *syslogEncoder) AddArray(key string, arr zapcore.ArrayMarshaler) error {
-	return enc.je.AddArray(key, arr)
-}
-
-func (enc *syslogEncoder) AddObject(key string, obj zapcore.ObjectMarshaler) error {
-	return enc.je.AddObject(key, obj)
-}
-
-func (enc *syslogEncoder) AddBinary(key string, val []byte)          { enc.je.AddBinary(key, val) }
-func (enc *syslogEncoder) AddByteString(key string, val []byte)      { enc.je.AddByteString(key, val) }
-func (enc *syslogEncoder) AddBool(key string, val bool)              { enc.je.AddBool(key, val) }
-func (enc *syslogEncoder) AddComplex128(key string, val complex128)  { enc.je.AddComplex128(key, val) }
-func (enc *syslogEncoder) AddDuration(key string, val time.Duration) { enc.je.AddDuration(key, val) }
-func (enc *syslogEncoder) AddFloat64(key string, val float64)        { enc.je.AddFloat64(key, val) }
-func (enc *syslogEncoder) AddInt64(key string, val int64)            { enc.je.AddInt64(key, val) }
-
-func (enc *syslogEncoder) AddReflected(key string, obj interface{}) error {
-	return enc.je.AddReflected(key, obj)
-}
-
-func (enc *syslogEncoder) OpenNamespace(key string)          { enc.je.OpenNamespace(key) }
-func (enc *syslogEncoder) AddString(key, val string)         { enc.je.AddString(key, val) }
-func (enc *syslogEncoder) AddTime(key string, val time.Time) { enc.je.AddTime(key, val) }
-func (enc *syslogEncoder) AddUint64(key string, val uint64)  { enc.je.AddUint64(key, val) }
-
-func (enc *syslogEncoder) AppendArray(arr zapcore.ArrayMarshaler) error {
-	return enc.je.AppendArray(arr)
-}
-
-func (enc *syslogEncoder) AppendObject(obj zapcore.ObjectMarshaler) error {
-	return enc.je.AppendObject(obj)
-}
-
-func (enc *syslogEncoder) AppendBool(val bool)              { enc.je.AppendBool(val) }
-func (enc *syslogEncoder) AppendByteString(val []byte)      { enc.je.AppendByteString(val) }
-func (enc *syslogEncoder) AppendComplex128(val complex128)  { enc.je.AppendComplex128(val) }
-func (enc *syslogEncoder) AppendDuration(val time.Duration) { enc.je.AppendDuration(val) }
-func (enc *syslogEncoder) AppendInt64(val int64)            { enc.je.AppendInt64(val) }
-
-func (enc *syslogEncoder) AppendReflected(val interface{}) error {
-	return enc.je.AppendReflected(val)
-}
-
-func (enc *syslogEncoder) AppendString(val string)            { enc.je.AppendString(val) }
-func (enc *syslogEncoder) AppendTime(val time.Time)           { enc.je.AppendTime(val) }
-func (enc *syslogEncoder) AppendUint64(val uint64)            { enc.je.AppendUint64(val) }
-func (enc *syslogEncoder) AddComplex64(k string, v complex64) { enc.je.AddComplex64(k, v) }
-func (enc *syslogEncoder) AddFloat32(k string, v float32)     { enc.je.AddFloat32(k, v) }
-func (enc *syslogEncoder) AddInt(k string, v int)             { enc.je.AddInt(k, v) }
-func (enc *syslogEncoder) AddInt32(k string, v int32)         { enc.je.AddInt32(k, v) }
-func (enc *syslogEncoder) AddInt16(k string, v int16)         { enc.je.AddInt16(k, v) }
-func (enc *syslogEncoder) AddInt8(k string, v int8)           { enc.je.AddInt8(k, v) }
-func (enc *syslogEncoder) AddUint(k string, v uint)           { enc.je.AddUint(k, v) }
-func (enc *syslogEncoder) AddUint32(k string, v uint32)       { enc.je.AddUint32(k, v) }
-func (enc *syslogEncoder) AddUint16(k string, v uint16)       { enc.je.AddUint16(k, v) }
-func (enc *syslogEncoder) AddUint8(k string, v uint8)         { enc.je.AddUint8(k, v) }
-func (enc *syslogEncoder) AddUintptr(k string, v uintptr)     { enc.je.AddUintptr(k, v) }
-func (enc *syslogEncoder) AppendComplex64(v complex64)        { enc.je.AppendComplex64(v) }
-func (enc *syslogEncoder) AppendFloat64(v float64)            { enc.je.AppendFloat64(v) }
-func (enc *syslogEncoder) AppendFloat32(v float32)            { enc.je.AppendFloat32(v) }
-func (enc *syslogEncoder) AppendInt(v int)                    { enc.je.AppendInt(v) }
-func (enc *syslogEncoder) AppendInt32(v int32)                { enc.je.AppendInt32(v) }
-func (enc *syslogEncoder) AppendInt16(v int16)                { enc.je.AppendInt16(v) }
-func (enc *syslogEncoder) AppendInt8(v int8)                  { enc.je.AppendInt8(v) }
-func (enc *syslogEncoder) AppendUint(v uint)                  { enc.je.AppendUint(v) }
-func (enc *syslogEncoder) AppendUint32(v uint32)              { enc.je.AppendUint32(v) }
-func (enc *syslogEncoder) AppendUint16(v uint16)              { enc.je.AppendUint16(v) }
-func (enc *syslogEncoder) AppendUint8(v uint8)                { enc.je.AppendUint8(v) }
-func (enc *syslogEncoder) AppendUintptr(v uintptr)            { enc.je.AppendUintptr(v) }
 
 func (enc *syslogEncoder) Clone() zapcore.Encoder {
 	return enc.clone()
@@ -212,7 +135,10 @@ func (enc *syslogEncoder) Clone() zapcore.Encoder {
 func (enc *syslogEncoder) clone() *syslogEncoder {
 	clone := &syslogEncoder{
 		SyslogEncoderConfig: enc.SyslogEncoderConfig,
-		je:                  enc.je.Clone().(jsonEncoder),
+		MapObjectEncoder:    zapcore.NewMapObjectEncoder(),
+	}
+	for k, v := range enc.Fields {
+		clone.Fields[k] = v
 	}
 	return clone
 }
@@ -297,44 +223,46 @@ func (enc *syslogEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field)
 }
 
 func (enc *syslogEncoder) encodeStructuredData(fields []zapcore.Field) string {
-	if len(fields) == 0 {
+	all := enc.clone()
+	for _, f := range fields {
+		f.AddTo(all)
+	}
+	if len(all.Fields) == 0 {
 		return nilValue
 	}
+	keys := make([]string, 0, len(all.Fields))
+	for k := range all.Fields {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
 
 	var buf buffer.Buffer
-	buf.AppendString("[" + enc.App + "@" + strconv.Itoa(enc.EnterpriseID) + " ")
-	for i, f := range fields {
-		if i > 0 {
-			buf.AppendByte(' ')
-		}
-		buf.AppendString(f.Key)
-		buf.AppendByte('=')
-		var v string
-		switch f.Type {
-		case zapcore.ErrorType:
-			v = f.Interface.(error).Error()
-		case zapcore.StringType:
-			v = f.String
-			v = strings.Replace(v, "'", `\'`, -1)
-			v = strings.Replace(v, `"`, `\"`, -1)
-			v = strings.Replace(v, "]", `\]`, -1)
-		case zapcore.Int32Type, zapcore.Int64Type, zapcore.Int16Type, zapcore.Int8Type:
-			v = strconv.FormatInt(f.Integer, 10)
-		case zapcore.Uint32Type, zapcore.Uint64Type, zapcore.Uint16Type, zapcore.Uint8Type:
-			v = strconv.FormatUint(uint64(f.Integer), 10)
-		case zapcore.Float64Type:
-			v = strconv.FormatFloat(math.Float64frombits(uint64(f.Integer)), 'f', -1, 64)
-		case zapcore.Float32Type:
-			v = strconv.FormatFloat(float64(math.Float32frombits(uint32(f.Integer))), 'f', -1, 32)
-		case zapcore.BoolType:
-			if f.Integer == 1 {
-				v = "true"
-			} else {
-				v = "false"
-			}
-		}
-		buf.AppendString("\"" + v + "\"")
+	buf.AppendString("[" + enc.App + "@" + strconv.Itoa(enc.EnterpriseID))
+	for _, k := range keys {
+		buf.AppendByte(' ')
+		buf.AppendString(sdName(k))
+		buf.AppendString(`="`)
+		buf.AppendString(sdParamValueEscaper.Replace(fmt.Sprint(all.Fields[k])))
+		buf.AppendByte('"')
 	}
 	buf.AppendByte(']')
 	return buf.String()
+}
+
+// sdParamValueEscaper escapes what RFC 5424 requires in a PARAM-VALUE.
+var sdParamValueEscaper = strings.NewReplacer(`\`, `\\`, `"`, `\"`, `]`, `\]`)
+
+// sdName is k as an RFC 5424 SD-NAME: up to 32 printable ASCII characters
+// other than '=', ' ', ']' and '"'.
+func sdName(k string) string {
+	n := strings.Map(func(r rune) rune {
+		if r == '=' || r == ']' || r == '"' {
+			return '_'
+		}
+		return rfc5424CompliantASCIIMapper(r)
+	}, k)
+	if len(n) > 32 {
+		n = n[:32]
+	}
+	return n
 }

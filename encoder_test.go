@@ -142,15 +142,6 @@ func testEncoderConfig(framing Framing) SyslogEncoderConfig {
 
 func testSyslogEncoderFraming(t *testing.T, framing Framing) {
 	enc := NewSyslogEncoder(testEncoderConfig(framing))
-	enc.AddString("str", "foo")
-	enc.AddInt64("int64-1", 1)
-	enc.AddInt64("int64-2", 2)
-	enc.AddFloat64("float64", 1.0)
-	enc.AddString("string1", "\n")
-	enc.AddString("string2", "💩")
-	enc.AddString("string3", "🤔")
-	enc.AddString("string4", "🙊")
-	enc.AddBool("bool", true)
 	buf, _ := enc.EncodeEntry(testEntry, nil)
 	defer buf.Free()
 
@@ -186,17 +177,16 @@ func TestSyslogEncoderStructuredData(t *testing.T) {
 	enc.AddString("string4", "🙊")
 	enc.AddBool("bool", true)
 
+	enc = enc.Clone() // as With does
+
 	// Add fields to encode into structured data
-	buf, _ := enc.EncodeEntry(testEntry, []zapcore.Field{zap.String("a-str", "pebcak"), zap.Int64("i64", 42), zap.Uint32("u32", 314), zap.Float64("f64", 3.14), zap.Bool("b", true), zap.Error(errors.New("boom"))})
+	buf, _ := enc.EncodeEntry(testEntry, []zapcore.Field{zap.String("a-str", "pebcak"), zap.Int64("i64", 42), zap.Uint32("u32", 314), zap.Float64("f64", 3.14), zap.Bool("b", true),
+		zap.Error(errors.New(`a"b]c\`)), zap.Duration("dur", 1500*time.Millisecond), zap.Strings("strs", []string{"x", "y"}), zap.Int("batch ID", 1)})
 	defer buf.Free()
 	msg := buf.String()
-	msgPrefix := "<135>1 2017-01-02T03:04:05.123456Z localhost encoder_test 9876 - [encoder_test@112 a-str=\"pebcak\" i64=\"42\" u32=\"314\" f64=\"3.14\" b=\"true\" error=\"boom\"] \xef\xbb\xbf"
-	if !strings.HasPrefix(msg, msgPrefix) {
-		t.Errorf("Wrong syslog output for structured data")
-		t.Log(msg)
-		t.Log(msgPrefix)
-		return
-	}
+	msgPrefix := "<135>1 2017-01-02T03:04:05.123456Z localhost encoder_test 9876 - [encoder_test@112 a-str=\"pebcak\" b=\"true\" batch_ID=\"1\" bool=\"true\" dur=\"1.5s\" " +
+		`error="a\"b\]c\\" f64="3.14" float64="1" i64="42" int64-1="1" int64-2="2" str="foo" string1="` + "\n" + `" string2="💩" string3="🤔" string4="🙊" strs="[x y\]" u32="314"] ` + "\xef\xbb\xbf"
+	require.Equal(t, msgPrefix, msg[:len(msgPrefix)])
 }
 
 func TestSyslogEncoder(t *testing.T) {
